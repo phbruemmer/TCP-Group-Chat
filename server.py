@@ -1,4 +1,5 @@
 import asyncio
+import threading
 import socket
 
 
@@ -26,8 +27,8 @@ async def handle_client(client, addr):
             data += recv_data
             if len(recv_data) < BUFFER:
                 break
-        print(data)
-        await loop.sock_sendto(client, data.encode(), addr)
+        # await loop.sock_sendto(client, data.encode(), addr)
+        await loop.sock_sendall(client, data.encode())
     client.close()
 
 
