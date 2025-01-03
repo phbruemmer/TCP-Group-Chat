@@ -28,7 +28,6 @@ async def handle_client(client, addr):
                 break
         print(data)
         await loop.sock_sendto(client, data.encode(), addr)
-    await loop.sock_sendto(client, exit_msg, addr)
     client.close()
 
 

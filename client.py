@@ -8,15 +8,18 @@ BUFFER = 1024
 
 
 async def receiver(client):
-    data = None
     try:
-        while not data == b"[Lobby] Closing connection...":
+        while True:
             data = b""
             while True:
-                recv_data = client.recv(BUFFER)
-                data += recv_data
-                if len(recv_data) < BUFFER:
-                    break
+                try:
+                    recv_data = client.recv(BUFFER)
+                    if not recv_data:
+                        break
+                    data += recv_data
+                except BlockingIOError:
+                    await asyncio.sleep(0)
+                    continue
             print(data.decode())
             await asyncio.sleep(0)
     except asyncio.CancelledError:
@@ -27,12 +30,11 @@ async def receiver(client):
 
 
 async def sender(client):
-    loop = asyncio.get_event_loop()
+    msg = ""
     try:
-        while True:
-            msg = await loop.run_in_executor(None, input, ">>>")
-            print(msg)
-            await client.send(msg.encode())
+        while not msg == "!exit":
+            msg = await asyncio.to_thread(input, ">>> ")
+            client.send(msg.encode())
     except asyncio.CancelledError:
         print("[sender] stopping sender task.")
     except Exception as e:
@@ -41,6 +43,9 @@ async def sender(client):
 
 
 async def handle_client(client):
+    start_data = client.recv(BUFFER).decode()
+    print(start_data)
+
     receive = asyncio.create_task(receiver(client))
     # print(f"[handle_client] created receive task: {receive}")
     send = asyncio.create_task(sender(client))
@@ -63,6 +68,7 @@ def start_client():
     try:
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client.connect((HOST, PORT))
+        client.setblocking(False)
         asyncio.run(handle_client(client))
         client.close()
     except Exception as e:
