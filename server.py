@@ -7,6 +7,8 @@ HOST = socket.gethostbyname(socket.gethostname())
 PORT = 8888
 BUFFER = 1024
 
+connected_clients = []
+
 
 """
 GENERAL PURPOSE MESSAGES
@@ -28,8 +30,11 @@ async def handle_client(client, addr):
             if len(recv_data) < BUFFER:
                 break
         # await loop.sock_sendto(client, data.encode(), addr)
-        await loop.sock_sendall(client, data.encode())
+        for con_client in connected_clients:
+            if not con_client == (client, addr):
+                await loop.sock_sendto(con_client[0], data.encode(), con_client[1])
     client.close()
+    connected_clients.remove((client, addr))
 
 
 async def run_server():
@@ -43,7 +48,8 @@ async def run_server():
     while True:
         client, addr = await loop.sock_accept(server)
         print(f"[run_server] {addr[0]} connected to this server.")
-        await loop.create_task(handle_client(client, addr))
+        connected_clients.append((client, addr))
+        loop.create_task(handle_client(client, addr))
 
 
 if __name__ == "__main__":

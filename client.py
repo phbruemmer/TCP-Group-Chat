@@ -33,7 +33,7 @@ async def sender(client):
     try:
         while not msg == "!exit":
             await asyncio.sleep(0.1)
-            msg = await asyncio.to_thread(input, ">>> ")
+            msg = await asyncio.to_thread(input)
             client.send(msg.encode())
     except asyncio.CancelledError:
         print("[sender] stopping sender task.")
