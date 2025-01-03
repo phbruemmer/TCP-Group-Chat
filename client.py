@@ -11,17 +11,22 @@ async def receiver(client):
     try:
         while True:
             data = b""
-            while True:
-                try:
+            try:
+                while True:
                     recv_data = client.recv(BUFFER)
                     if not recv_data:
                         break
                     data += recv_data
-                except BlockingIOError:
-                    await asyncio.sleep(0)
-                    continue
-            print(data.decode())
-            await asyncio.sleep(0)
+
+                    """
+                    I'm definitely not happy with my receiver function and especially not with how the data is being
+                    printed, but let's be fair, who sends data larger than the 1024-byte buffer? 
+                    """
+
+                    print(data.decode())
+            except BlockingIOError:
+                await asyncio.sleep(0)
+                continue
     except asyncio.CancelledError:
         print("[receiver] stopping receiver task.")
     except Exception as e:
@@ -33,6 +38,7 @@ async def sender(client):
     msg = ""
     try:
         while not msg == "!exit":
+            await asyncio.sleep(.1)
             msg = await asyncio.to_thread(input, ">>> ")
             client.send(msg.encode())
     except asyncio.CancelledError:
