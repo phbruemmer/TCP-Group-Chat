@@ -52,7 +52,7 @@ async def handle_client(client):
     # print(f"[handle_client] created send task: {send}")
 
     try:
-        await asyncio.wait([receive, send], return_when=asyncio.FIRST_EXCEPTION)
+        await asyncio.wait([receive, send], return_when=asyncio.FIRST_COMPLETED)
     except Exception as e:
         print(f"[handle_client] Unexpected error: {e}")
         raise
