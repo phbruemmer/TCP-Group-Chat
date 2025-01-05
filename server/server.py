@@ -62,14 +62,14 @@ async def handle_client(client, addr):
     await loop.sock_sendto(client, joining_msg, addr)
     data = None
     while not data == "!exit":
-        data = ""
+        data = b""
         while True:
-            recv_data = (await loop.sock_recv(client, BUFFER)).decode()
+            recv_data = (await loop.sock_recv(client, BUFFER))
             data += recv_data
             if len(recv_data) < BUFFER:
                 break
-        response = handle_lobby_commands(data)
-        await loop.sock_sendto(client,response.encode(), addr)
+        response = handle_lobby_commands(data.decode())
+        await loop.sock_sendto(client, response.encode(), addr)
     client.close()
     connected_clients.remove((client, addr))
 

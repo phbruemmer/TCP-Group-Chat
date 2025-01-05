@@ -43,8 +43,8 @@ async def sender(client):
 
 
 async def handle_client(client):
-    start_data = client.recv(BUFFER).decode()
-    print(start_data)
+    # start_data = client.recv(BUFFER).decode()
+    # print(start_data)
 
     receive = asyncio.create_task(receiver(client))
     # print(f"[handle_client] created receive task: {receive}")
