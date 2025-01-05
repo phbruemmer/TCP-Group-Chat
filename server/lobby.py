@@ -5,6 +5,10 @@ import ports
 
 
 def get_open_port():
+    """
+    checks for open ports.
+    :return: int -> open port
+    """
     port_range_start = 10000
     port_range_end = 20000
 
@@ -33,11 +37,26 @@ class Lobby:
         asyncio.run(self.lobby_setup())
 
     async def send_all(self, loop, client_data, data):
+        """
+        sends data to all clients in the connected clients list.
+        :param loop: current event loop
+        :param client_data: tuple containing client socket and address
+        :param data: encrypted data to send to other clients
+        :return: -
+        """
         for receiver_clients in self.connected_clients:
             if not receiver_clients == client_data:
                 await loop.sock_sendto(receiver_clients[0], data, receiver_clients[1])
 
     async def handle_client(self, client, addr):
+        """
+        manages the connected clients.
+        - handles commands
+        - normal messages are sent to all connected clients in this lobby.
+        :param client: client socket
+        :param addr: address
+        :return: -
+        """
         loop = asyncio.get_event_loop()
 
         while True:                                                 # loop to receive incoming messages
