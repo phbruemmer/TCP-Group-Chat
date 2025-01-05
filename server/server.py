@@ -1,12 +1,18 @@
 import asyncio
+import pickle
 import socket
 
+import lobby
+import server_exceptions
 
 HOST = socket.gethostbyname(socket.gethostname())
 PORT = 8888
 BUFFER = 1024
 
 connected_clients = []
+running_lobbies = {
+    'main': (HOST, PORT),
+}
 
 
 """
@@ -20,23 +26,45 @@ help_msg = ("[help] List of commands to use in this lobby.\n!help\t\t\t\t:\tlist
             "\n!lobbies\t\t\t:\tlists all available lobbies.")
 
 
-def join_lobby(lobby_name):
-    return ""
+def join_lobby(lobby_host, lobby_port):
+    pass
 
 
-def handle_lobby_commands(cmd):
+def create_lobby(lobby_name, creator_client):
+    new_lobby = lobby.Lobby(
+        name=lobby_name,
+        creator=creator_client
+    )
+    new_lobby.create_lobby()
+    return new_lobby.HOST, new_lobby.PORT
+
+
+def handle_lobby_commands(cmd, client_data):
     cmd = cmd.split(' ')
     print(cmd)
     response = ""
+    try:
+        match cmd[0]:
+            case "!help":
+                response = help_msg
+            case "!join":
+                if not len(cmd) == 2:
+                    raise server_exceptions.CmdSetError(f"[handle_lobby_commands] Not enough parameters found.\n"
+                                                        f"[handle_lobby_commands] Expected 1, but given {len(cmd) - 1}.")
+                join_lobby(None, None)
+            case "!create":
+                if not len(cmd) == 2:
+                    raise server_exceptions.CmdSetError(f"[handle_lobby_commands] Not enough parameters found.\n"
+                                                        f"[handle_lobby_commands] Expected 1, but given {len(cmd) - 1}.")
+                lobby_name = cmd[1]
+                lobby_host, lobby_port = create_lobby(lobby_name, client_data)
+                running_lobbies[lobby_name] = (lobby_host, lobby_port)
 
-    match cmd[0]:
-        case "!help":
-            response = help_msg
-        case "!join":
-            response = join_lobby(cmd[1])
-        case _:
-            pass
-            # ignore
+            case _:
+                pass
+                # ignore
+    except server_exceptions.CmdSetError as parameter_exception:
+        print(parameter_exception)
 
     return response
 
@@ -68,7 +96,7 @@ async def handle_client(client, addr):
             data += recv_data
             if len(recv_data) < BUFFER:
                 break
-        response = handle_lobby_commands(data.decode())
+        response = handle_lobby_commands(data.decode(), (client, addr))
         await loop.sock_sendto(client, response.encode(), addr)
     client.close()
     connected_clients.remove((client, addr))
