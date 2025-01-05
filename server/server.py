@@ -21,12 +21,17 @@ GENERAL PURPOSE MESSAGES
 joining_msg = b"[Lobby] You joined the main lobby!\n[Lobby] Use !help to see a list of commands."
 exit_msg = b"[Lobby] Closing connection..."
 
-help_msg = ("[help] List of commands to use in this lobby.\n!help\t\t\t\t:\tlists all available commands."
-            "\n!join [lobby name]\t:\tconnects you to another lobby."
-            "\n!lobbies\t\t\t:\tlists all available lobbies.")
+help_msg = ("[help] List of commands to use in this lobby.\n!help\t\t\t\t\t:\tlists all available commands."
+            "\n!join [lobby name]\t\t:\tconnects you to another lobby."
+            "\n!create [lobby name]\t:\tcreates new lobby."
+            "\n!lobbies\t\t\t\t:\tlists all available lobbies.")
 
 
 def join_lobby(lobby_host, lobby_port):
+    # check if lobby exists
+    # send lobby data
+    # close connection
+    # CLIENT: connect to lobby
     pass
 
 

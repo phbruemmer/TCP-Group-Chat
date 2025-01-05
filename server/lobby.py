@@ -61,7 +61,7 @@ class Lobby:
 
         while True:                                                 # loop to receive incoming messages
             data = b""
-            while True:                                             # loop to assembly larger messages
+            while True:                                             # loop to assemble larger messages
                 data += await loop.sock_recv(client, self.BUFFER)
                 if len(data) < self.BUFFER:                         # if message is smaller than the buffer, break
                     break
