@@ -32,7 +32,12 @@ def join_lobby(lobby_host, lobby_port):
     # send lobby data
     # close connection
     # CLIENT: connect to lobby
-    pass
+    change_server = {
+        'status_code:': 2,
+        'new_connection:': (lobby_host, lobby_port)
+    }
+    serialized_data = pickle.dumps(change_server)
+    print(serialized_data)
 
 
 def create_lobby(lobby_name, creator_client):
