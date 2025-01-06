@@ -27,17 +27,31 @@ help_msg = ("[help] List of commands to use in this lobby.\n!help\t\t\t\t\t:\tli
             "\n!lobbies\t\t\t\t:\tlists all available lobbies.")
 
 
+def check_running_lobbies(lobby_data):
+    lobby_exists = False
+    for lobby_name in running_lobbies:
+        if running_lobbies[lobby_name] == lobby_data:
+            lobby_exists = True
+            break
+    return lobby_exists
+
+
 def join_lobby(lobby_host, lobby_port):
     # check if lobby exists
     # send lobby data
     # close connection
     # CLIENT: connect to lobby
-    change_server = {
-        'status_code:': 2,
-        'new_connection:': (lobby_host, lobby_port)
-    }
-    serialized_data = pickle.dumps(change_server)
-    print(serialized_data)
+    try:
+        if not check_running_lobbies((lobby_host, lobby_port)):
+            raise server_exceptions.LobbyError("[join_lobby] couldn't find any running lobby with that data.")
+        change_server = {
+            'status_code:': 2,
+            'new_connection:': (lobby_host, lobby_port)
+        }
+        serialized_data = pickle.dumps(change_server)
+        return serialized_data
+    except server_exceptions.LobbyError as e:
+        print(e)
 
 
 def create_lobby(lobby_name, creator_client):
