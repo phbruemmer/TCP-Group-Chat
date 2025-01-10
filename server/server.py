@@ -112,16 +112,20 @@ async def handle_client(client, addr):
     loop = asyncio.get_event_loop()
 
     await loop.sock_sendto(client, joining_msg, addr)
-    data = None
-    while not data == "!exit":
+
+    while True:
         data = b""
         while True:
             recv_data = (await loop.sock_recv(client, BUFFER))
             data += recv_data
             if len(recv_data) < BUFFER:
                 break
-        response = handle_lobby_commands(data.decode(), (client, addr))
+        data = data.decode()
+        if data == "!exit":
+            break
+        response = handle_lobby_commands(data, (client, addr))
         await loop.sock_sendto(client, response.encode(), addr)
+    print(f"[handle_client] closing client connection with {addr[0]}")
     client.close()
     connected_clients.remove((client, addr))
 
