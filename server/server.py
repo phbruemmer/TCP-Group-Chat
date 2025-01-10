@@ -55,6 +55,12 @@ def join_lobby(lobby_host, lobby_port):
 
 
 def create_lobby(lobby_name, creator_client):
+    """
+    Creates a lobby object using the given information
+    :param lobby_name: string
+    :param creator_client: tuple containing client socket and addr.
+    :return:
+    """
     new_lobby = lobby.Lobby(
         name=lobby_name,
         creator=creator_client
@@ -64,6 +70,13 @@ def create_lobby(lobby_name, creator_client):
 
 
 def handle_lobby_commands(cmd, client_data):
+    """
+    Handles the commands received by the client handler and
+    creates a response accordingly.
+    :param cmd: command
+    :param client_data: tuple containing client socket and addr.
+    :return: response (decoded)
+    """
     cmd = cmd.split(' ')
     print(cmd)
     response = ""
@@ -89,7 +102,6 @@ def handle_lobby_commands(cmd, client_data):
                 # ignore
     except server_exceptions.CmdSetError as parameter_exception:
         print(parameter_exception)
-
     return response
 
 
@@ -109,6 +121,16 @@ async def send_all(loop, client_data, data):
 
 
 async def handle_client(client, addr):
+    """
+    handles the client:
+     - receives data / commands
+     - gracefully shuts down client after receiving !exit command.
+     - handles commands with handle_lobby_commands() function
+     - sends response to the client.
+    :param client:
+    :param addr:
+    :return:
+    """
     loop = asyncio.get_event_loop()
 
     await loop.sock_sendto(client, joining_msg, addr)
@@ -124,13 +146,18 @@ async def handle_client(client, addr):
         if data == "!exit":
             break
         response = handle_lobby_commands(data, (client, addr))
-        await loop.sock_sendto(client, response.encode(), addr)
+        if response is not None:
+            await loop.sock_sendto(client, response.encode(), addr)
     print(f"[handle_client] closing client connection with {addr[0]}")
     client.close()
     connected_clients.remove((client, addr))
 
 
 async def run_server():
+    """
+    Creates a server socket and handles starts the handle_client and client acceptation loop
+    :return:
+    """
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind((HOST, PORT))
     server.listen(8)
