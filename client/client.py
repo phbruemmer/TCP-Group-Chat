@@ -1,10 +1,16 @@
 import asyncio
 import socket
+import json
 
 
 HOST = "192.168.115.200"
 PORT = 8888
 BUFFER = 1024
+
+
+def handle_commands(cmd):
+    print(cmd['status_code'])
+    print(cmd['new_connection'])
 
 
 async def receiver(client):
@@ -18,6 +24,12 @@ async def receiver(client):
                     if len(recv_data) < BUFFER:
                         break
                 print(data.decode())
+                try:
+                    command_map = json.loads(data.decode())
+                    handle_commands(command_map)
+                except json.JSONDecodeError:
+                    # Base exception
+                    pass
             except BlockingIOError:
                 await asyncio.sleep(0)
                 continue
