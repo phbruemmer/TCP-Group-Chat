@@ -9,6 +9,12 @@ BUFFER = 1024
 
 
 def handle_commands(cmd):
+    match cmd['status_code']:
+        case 1:
+            pass
+        case 2:
+            # join new server
+            pass
     print(cmd['status_code'])
     print(cmd['new_connection'])
 
