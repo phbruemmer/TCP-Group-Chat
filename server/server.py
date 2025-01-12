@@ -1,5 +1,6 @@
+import threading
 import asyncio
-import pickle
+import json
 import socket
 
 import lobby
@@ -10,9 +11,12 @@ PORT = 8888
 BUFFER = 1024
 
 connected_clients = []
+running_lobby_threads = []
+
 running_lobbies = {
     'main': (HOST, PORT),
 }
+
 
 
 """
@@ -28,9 +32,14 @@ help_msg = ("[help] List of commands to use in this lobby.\n!help\t\t\t\t\t:\tli
 
 
 def check_running_lobbies(lobby_data):
+    """
+    checks if lobby_data already exists
+    :param lobby_data:
+    :return:
+    """
     lobby_exists = False
     for lobby_name in running_lobbies:
-        if running_lobbies[lobby_name] == lobby_data:
+        if running_lobbies[lobby_name] == lobby_data or lobby_name == lobby_data:
             lobby_exists = True
             break
     return lobby_exists
@@ -45,11 +54,10 @@ def join_lobby(lobby_host, lobby_port):
         if not check_running_lobbies((lobby_host, lobby_port)):
             raise server_exceptions.LobbyError("[join_lobby] couldn't find any running lobby with that data.")
         change_server = {
-            'status_code:': 2,
-            'new_connection:': (lobby_host, lobby_port)
+            'status_code': 2,
+            'new_connection': [lobby_host, lobby_port]
         }
-        serialized_data = pickle.dumps(change_server)
-        return serialized_data
+        return json.dumps(change_server).encode()
     except server_exceptions.LobbyError as e:
         print(e)
 
@@ -65,7 +73,9 @@ def create_lobby(lobby_name, creator_client):
         name=lobby_name,
         creator=creator_client
     )
-    new_lobby.create_lobby()
+    lobby_thread = threading.Thread(target=new_lobby.create_lobby)
+    lobby_thread.start()
+    running_lobby_threads.append(lobby_thread)
     return new_lobby.HOST, new_lobby.PORT
 
 
@@ -78,12 +88,12 @@ def handle_lobby_commands(cmd, client_data):
     :return: response (decoded)
     """
     cmd = cmd.split(' ')
-    print(cmd)
+    print("[DEBUG - handle_lobby_commands] - " + str(cmd))
     response = ""
     try:
         match cmd[0]:
             case "!help":
-                response = help_msg
+                response = help_msg.encode()
             case "!join":
                 if not len(cmd) == 2:
                     raise server_exceptions.CmdSetError(f"[handle_lobby_commands] Not enough parameters found.\n"
@@ -94,11 +104,13 @@ def handle_lobby_commands(cmd, client_data):
                     raise server_exceptions.CmdSetError(f"[handle_lobby_commands] Not enough parameters found.\n"
                                                         f"[handle_lobby_commands] Expected 1, but given {len(cmd) - 1}.")
                 lobby_name = cmd[1]
-                lobby_host, lobby_port = create_lobby(lobby_name, client_data)
-                running_lobbies[lobby_name] = (lobby_host, lobby_port)
-
+                if not check_running_lobbies(lobby_name):
+                    lobby_host, lobby_port = create_lobby(lobby_name, client_data)
+                    running_lobbies[lobby_name] = (lobby_host, lobby_port)
+                    response = join_lobby(lobby_host, lobby_port)
+                    print(response)
             case _:
-                pass
+                response = b""
                 # ignore
     except server_exceptions.CmdSetError as parameter_exception:
         print(parameter_exception)
@@ -146,8 +158,7 @@ async def handle_client(client, addr):
         if data == "!exit":
             break
         response = handle_lobby_commands(data, (client, addr))
-        if response is not None:
-            await loop.sock_sendto(client, response.encode(), addr)
+        await loop.sock_sendto(client, response, addr)
     print(f"[handle_client] closing client connection with {addr[0]}")
     client.close()
     connected_clients.remove((client, addr))
