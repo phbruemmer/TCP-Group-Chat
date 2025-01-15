@@ -114,6 +114,12 @@ def handle_lobby_commands(cmd, client_data):
 
                 response = server_response.generate_response(1, HOST, msg=help_msg)
 
+            case "!exit":
+                #                         #
+                #    closes connection    #
+                #                         #
+                response = server_response.generate_response(5, HOST, msg=exit_msg)
+
             case "!join":
                 #                         #
                 #   joins another lobby   #

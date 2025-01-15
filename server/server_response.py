@@ -5,6 +5,7 @@ codes:
 2: change server
 3: Not Found
 4: Server Error
+5: close connection
 """
 
 

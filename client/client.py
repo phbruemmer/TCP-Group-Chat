@@ -1,3 +1,4 @@
+import threading
 import asyncio
 import socket
 import json
@@ -8,7 +9,7 @@ PORT = 8888
 BUFFER = 1024
 
 
-def handle_response(response):
+def handle_response(response, stop_event):
     response_code = response['code']
     response_host = response['host']
 
@@ -28,14 +29,17 @@ def handle_response(response):
             case 4:
                 # Serverside error
                 pass
+            case 5:
+                # Close connection
+                stop_event.set()
     except KeyError:
         pass
         # print("[handle_response] incorrect response.")
 
 
-async def receiver(client):
+async def receiver(client, stop_event):
     try:
-        while True:
+        while not stop_event.is_set():
             data = b""
             try:
                 while True:
@@ -44,7 +48,7 @@ async def receiver(client):
                     if len(recv_data) < BUFFER:
                         break
                 command_map = json.loads(data.decode())
-                handle_response(command_map)
+                handle_response(command_map, stop_event)
             except BlockingIOError:
                 await asyncio.sleep(0)
                 continue
@@ -57,13 +61,19 @@ async def receiver(client):
         raise
 
 
-async def sender(client):
-    msg = ""
+async def sender(client, stop_event):
     try:
-        while not msg == "!exit":
+        while not stop_event.is_set():
+            # small sleep to prevent busy looping
             await asyncio.sleep(0.1)
-            msg = await asyncio.to_thread(input)
-            client.send(msg.encode())
+
+            try:
+                msg = await asyncio.to_thread(input)
+                client.send(msg.encode())
+                if msg == "!exit":
+                    stop_event.set()
+            except EOFError:
+                stop_event.set()
     except asyncio.CancelledError:
         print("[sender] stopping sender task.")
     except Exception as e:
@@ -72,13 +82,10 @@ async def sender(client):
 
 
 async def handle_client(client):
-    # start_data = client.recv(BUFFER).decode()
-    # print(start_data)
+    stop_event = asyncio.Event()
 
-    receive = asyncio.create_task(receiver(client))
-    # print(f"[handle_client] created receive task: {receive}")
-    send = asyncio.create_task(sender(client))
-    # print(f"[handle_client] created send task: {send}")
+    receive = asyncio.create_task(receiver(client, stop_event))
+    send = asyncio.create_task(sender(client, stop_event))
 
     try:
         await asyncio.wait([receive, send], return_when=asyncio.FIRST_COMPLETED)
