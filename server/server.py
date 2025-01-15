@@ -5,6 +5,7 @@ import socket
 
 import lobby
 import server_exceptions
+import server_response
 
 HOST = socket.gethostbyname(socket.gethostname())
 PORT = 8888
@@ -18,12 +19,12 @@ running_lobbies = {
 }
 
 
-
 """
 GENERAL PURPOSE MESSAGES
 """
-joining_msg = b"[Lobby] You joined the main lobby!\n[Lobby] Use !help to see a list of commands."
-exit_msg = b"[Lobby] Closing connection..."
+
+joining_msg = "[Lobby] You joined the main lobby!\n[Lobby] Use !help to see a list of commands."
+exit_msg = "[Lobby] Closing connection..."
 
 help_msg = ("[help] List of commands to use in this lobby.\n!help\t\t\t\t\t:\tlists all available commands."
             "\n!join [lobby name]\t\t:\tconnects you to another lobby."
@@ -53,13 +54,10 @@ def join_lobby(lobby_host, lobby_port):
     try:
         if not check_running_lobbies((lobby_host, lobby_port)):
             raise server_exceptions.LobbyError("[join_lobby] couldn't find any running lobby with that data.")
-        change_server = {
-            'status_code': 2,
-            'new_connection': [lobby_host, lobby_port]
-        }
-        return json.dumps(change_server).encode()
+        response = server_response.generate_response(2, HOST, connection=[lobby_host, lobby_port])
+        return response
     except server_exceptions.LobbyError as e:
-        print(e)
+        return
 
 
 def create_lobby(lobby_name, creator_client):
@@ -73,9 +71,16 @@ def create_lobby(lobby_name, creator_client):
         name=lobby_name,
         creator=creator_client
     )
+    # lobby thread
     lobby_thread = threading.Thread(target=new_lobby.create_lobby)
     lobby_thread.start()
+
+    # running lobby thread vector
     running_lobby_threads.append(lobby_thread)
+
+    # running lobbies : name -> Host, Port
+    running_lobbies[lobby_name] = (new_lobby.HOST, new_lobby.PORT)
+
     return new_lobby.HOST, new_lobby.PORT
 
 
@@ -87,34 +92,54 @@ def handle_lobby_commands(cmd, client_data):
     :param client_data: tuple containing client socket and addr.
     :return: response (decoded)
     """
+    def create():
+        if not check_running_lobbies(cmd[1]):
+            # checks if lobby already exists.
+            lobby_host, lobby_port = create_lobby(cmd[1], client_data)
+            return join_lobby(lobby_host, lobby_port)
+
+    # separates the received command into small pieces
     cmd = cmd.split(' ')
+
     print("[DEBUG - handle_lobby_commands] - " + str(cmd))
-    response = ""
+
+    # declaration of the response dictionary
+    response = server_response.generate_response(3, HOST, msg="Unknown command.")
+
     try:
+        # try to identify the first command.
         match cmd[0]:
             case "!help":
-                response = help_msg.encode()
+                #                          #
+                #    sends command list    #
+                #                          #
+
+                server_response.generate_response(1, HOST, msg=help_msg)
+
             case "!join":
+                #                         #
+                #   joins another lobby   #
+                #                         #
+
                 if not len(cmd) == 2:
                     raise server_exceptions.CmdSetError(f"[handle_lobby_commands] Not enough parameters found.\n"
                                                         f"[handle_lobby_commands] Expected 1, but given {len(cmd) - 1}.")
                 join_lobby(None, None)
+
             case "!create":
+                #                          #
+                #    creates a new lobby   #
+                #                          #
+
                 if not len(cmd) == 2:
                     raise server_exceptions.CmdSetError(f"[handle_lobby_commands] Not enough parameters found.\n"
                                                         f"[handle_lobby_commands] Expected 1, but given {len(cmd) - 1}.")
-                lobby_name = cmd[1]
-                if not check_running_lobbies(lobby_name):
-                    lobby_host, lobby_port = create_lobby(lobby_name, client_data)
-                    running_lobbies[lobby_name] = (lobby_host, lobby_port)
-                    response = join_lobby(lobby_host, lobby_port)
-                    print(response)
-            case _:
-                response = b""
-                # ignore
+                response = create()
+
     except server_exceptions.CmdSetError as parameter_exception:
         print(parameter_exception)
-    return response
+
+    return json.dumps(response).encode()
 
 
 async def send_all(loop, client_data, data):
@@ -145,20 +170,37 @@ async def handle_client(client, addr):
     """
     loop = asyncio.get_event_loop()
 
-    await loop.sock_sendto(client, joining_msg, addr)
+    # send join message #
+    join_response = server_response.generate_response(1, HOST, msg=joining_msg)
+    join_msg = json.dumps(join_response).encode()
 
+    await loop.sock_sendto(client, join_msg, addr)
+
+    # receive data from the connected client
     while True:
         data = b""
+
+        # Second while-loop to receive larger data  (keyword buffer size)
         while True:
+            # receives data with size of BUFFER
             recv_data = (await loop.sock_recv(client, BUFFER))
             data += recv_data
             if len(recv_data) < BUFFER:
+                # Breaks the second while-loop if the received data is smaller than the buffer.
                 break
+
+        # Decode fully received data block.
         data = data.decode()
+
         if data == "!exit":
             break
+
+        # handles lobby commands
         response = handle_lobby_commands(data, (client, addr))
+
+        # sends a response in form of a hashmap (code, host, {keyword-arguments})
         await loop.sock_sendto(client, response, addr)
+
     print(f"[handle_client] closing client connection with {addr[0]}")
     client.close()
     connected_clients.remove((client, addr))
