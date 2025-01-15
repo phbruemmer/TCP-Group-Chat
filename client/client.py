@@ -16,7 +16,7 @@ def handle_response(response):
         match response_code:
             case 1:
                 # Normal message from the server
-                value = response['value']
+                value = response['msg']
                 print(value)
             case 2:
                 # change server
@@ -29,7 +29,8 @@ def handle_response(response):
                 # Serverside error
                 pass
     except KeyError:
-        print("[handle_response] incorrect response.")
+        pass
+        # print("[handle_response] incorrect response.")
 
 
 async def receiver(client):
@@ -42,15 +43,12 @@ async def receiver(client):
                     data += recv_data
                     if len(recv_data) < BUFFER:
                         break
-                print(data.decode())
-                try:
-                    command_map = json.loads(data.decode())
-                    handle_response(command_map)
-                except json.JSONDecodeError:
-                    # Base exception
-                    pass
+                command_map = json.loads(data.decode())
+                handle_response(command_map)
             except BlockingIOError:
                 await asyncio.sleep(0)
+                continue
+            except json.JSONDecodeError:
                 continue
     except asyncio.CancelledError:
         print("[receiver] stopping receiver task.")

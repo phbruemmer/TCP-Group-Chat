@@ -40,17 +40,15 @@ def check_running_lobbies(lobby_data):
     """
     lobby_exists = False
     for lobby_name in running_lobbies:
+        # iterates through running_lobbies vector
         if running_lobbies[lobby_name] == lobby_data or lobby_name == lobby_data:
+            # checks if the lobby already exists in the vector.
             lobby_exists = True
             break
     return lobby_exists
 
 
 def join_lobby(lobby_host, lobby_port):
-    # check if lobby exists
-    # send lobby data
-    # close connection
-    # CLIENT: connect to lobby
     try:
         if not check_running_lobbies((lobby_host, lobby_port)):
             raise server_exceptions.LobbyError("[join_lobby] couldn't find any running lobby with that data.")
@@ -114,7 +112,7 @@ def handle_lobby_commands(cmd, client_data):
                 #    sends command list    #
                 #                          #
 
-                server_response.generate_response(1, HOST, msg=help_msg)
+                response = server_response.generate_response(1, HOST, msg=help_msg)
 
             case "!join":
                 #                         #
@@ -124,7 +122,7 @@ def handle_lobby_commands(cmd, client_data):
                 if not len(cmd) == 2:
                     raise server_exceptions.CmdSetError(f"[handle_lobby_commands] Not enough parameters found.\n"
                                                         f"[handle_lobby_commands] Expected 1, but given {len(cmd) - 1}.")
-                join_lobby(None, None)
+                response = join_lobby(None, None)
 
             case "!create":
                 #                          #
