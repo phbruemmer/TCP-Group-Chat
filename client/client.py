@@ -8,15 +8,28 @@ PORT = 8888
 BUFFER = 1024
 
 
-def handle_commands(cmd):
-    match cmd['status_code']:
-        case 1:
-            pass
-        case 2:
-            # join new server
-            pass
-    print(cmd['status_code'])
-    print(cmd['new_connection'])
+def handle_response(response):
+    response_code = response['code']
+    response_host = response['host']
+
+    try:
+        match response_code:
+            case 1:
+                # Normal message from the server
+                value = response['value']
+                print(value)
+            case 2:
+                # change server
+                new_lobby_data = response['connection']
+                print(new_lobby_data)
+            case 3:
+                # Client side error - Not Found
+                pass
+            case 4:
+                # Serverside error
+                pass
+    except KeyError:
+        print("[handle_response] incorrect response.")
 
 
 async def receiver(client):
@@ -32,7 +45,7 @@ async def receiver(client):
                 print(data.decode())
                 try:
                     command_map = json.loads(data.decode())
-                    handle_commands(command_map)
+                    handle_response(command_map)
                 except json.JSONDecodeError:
                     # Base exception
                     pass
