@@ -54,7 +54,7 @@ def join_lobby(lobby_host, lobby_port):
             raise server_exceptions.LobbyError("[join_lobby] couldn't find any running lobby with that data.")
         response = server_response.generate_response(2, HOST, connection=[lobby_host, lobby_port])
         return response
-    except server_exceptions.LobbyError as e:
+    except server_exceptions.LobbyError:
         return
 
 
@@ -91,6 +91,13 @@ def handle_lobby_commands(cmd, client_data, client_is_running):
     :param client_data: tuple containing client socket and addr.
     :return: response (decoded)
     """
+    def join():
+        if not check_running_lobbies(cmd[1]):
+            return server_response.generate_response(3, HOST, msg="Could not find lobby.")
+        client_is_running.set()
+        lobby_host, lobby_port = running_lobbies[cmd[1]]
+        return join_lobby(lobby_host, lobby_port)
+
     def create():
         if not check_running_lobbies(cmd[1]):
             # checks if lobby already exists.
@@ -131,7 +138,7 @@ def handle_lobby_commands(cmd, client_data, client_is_running):
                 if not len(cmd) == 2:
                     raise server_exceptions.CmdSetError(f"[handle_lobby_commands] Not enough parameters found.\n"
                                                         f"[handle_lobby_commands] Expected 1, but given {len(cmd) - 1}.")
-                response = join_lobby(None, None)
+                response = join()
 
             case "!create":
                 #                          #
