@@ -82,10 +82,11 @@ def create_lobby(lobby_name, creator_client):
     return new_lobby.HOST, new_lobby.PORT
 
 
-def handle_lobby_commands(cmd, client_data):
+def handle_lobby_commands(cmd, client_data, client_is_running):
     """
     Handles the commands received by the client handler and
     creates a response accordingly.
+    :param client_is_running: asyncio event
     :param cmd: command
     :param client_data: tuple containing client socket and addr.
     :return: response (decoded)
@@ -94,6 +95,7 @@ def handle_lobby_commands(cmd, client_data):
         if not check_running_lobbies(cmd[1]):
             # checks if lobby already exists.
             lobby_host, lobby_port = create_lobby(cmd[1], client_data)
+            client_is_running.set()
             return join_lobby(lobby_host, lobby_port)
 
     # separates the received command into small pieces
@@ -119,6 +121,7 @@ def handle_lobby_commands(cmd, client_data):
                 #    closes connection    #
                 #                         #
                 response = server_response.generate_response(5, HOST, msg=exit_msg)
+                client_is_running.set()
 
             case "!join":
                 #                         #
@@ -180,8 +183,10 @@ async def handle_client(client, addr):
 
     await loop.sock_sendto(client, join_msg, addr)
 
+    client_is_running = asyncio.Event()
+
     # receive data from the connected client
-    while True:
+    while not client_is_running.is_set():
         data = b""
 
         # Second while-loop to receive larger data  (keyword buffer size)
@@ -200,7 +205,7 @@ async def handle_client(client, addr):
             break
 
         # handles lobby commands
-        response = handle_lobby_commands(data, (client, addr))
+        response = handle_lobby_commands(data, (client, addr), client_is_running)
 
         # sends a response in form of a hashmap (code, host, {keyword-arguments})
         await loop.sock_sendto(client, response, addr)
