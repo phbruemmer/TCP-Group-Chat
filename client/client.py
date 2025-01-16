@@ -4,9 +4,14 @@ import socket
 import json
 
 
-HOST = "192.168.115.200"
-PORT = 8888
-BUFFER = 1024
+class ConnectionData:
+    HOST = "192.168.115.200"
+    PORT = 8888
+    BUFFER = 1024
+
+
+change_server_event = asyncio.Event()
+connection_data = ConnectionData()
 
 
 def handle_response(response, stop_event):
@@ -22,7 +27,15 @@ def handle_response(response, stop_event):
             case 2:
                 # change server
                 new_lobby_data = response['connection']
-                print(new_lobby_data)
+
+                lobby_host = new_lobby_data[0]
+                lobby_port = new_lobby_data[1]
+
+                connection_data.HOST = lobby_host
+                connection_data.PORT = lobby_port
+
+                change_server_event.set()
+                stop_event.set()
             case 3:
                 # Client side error - Not Found
                 pass
@@ -43,9 +56,9 @@ async def receiver(client, stop_event):
             data = b""
             try:
                 while True:
-                    recv_data = client.recv(BUFFER)
+                    recv_data = client.recv(connection_data.BUFFER)
                     data += recv_data
-                    if len(recv_data) < BUFFER:
+                    if len(recv_data) < connection_data.BUFFER:
                         break
                 command_map = json.loads(data.decode())
                 handle_response(command_map, stop_event)
@@ -100,10 +113,13 @@ async def handle_client(client):
 
 
 def start_client():
-    print(f"[start_client] connecting to {HOST} on port {PORT}.")
+    # clear asyncio event
+    change_server_event.clear()
+
+    print(f"[start_client] connecting to {connection_data.HOST} on port {connection_data.PORT}.")
     try:
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client.connect((HOST, PORT))
+        client.connect((connection_data.HOST, connection_data.PORT))
         client.setblocking(False)
         asyncio.run(handle_client(client))
         client.close()
@@ -112,6 +128,13 @@ def start_client():
         raise
 
 
+def client_loop():
+    change_server_event.set()
+
+    while change_server_event.is_set():
+        start_client()
+
+
 if __name__ == '__main__':
-    start_client()
+    client_loop()
 
