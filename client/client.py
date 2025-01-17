@@ -66,6 +66,7 @@ async def receiver(client, stop_event):
                 await asyncio.sleep(0)
                 continue
             except json.JSONDecodeError:
+                print("[receiver] Invalid format.")
                 continue
     except asyncio.CancelledError:
         print("[receiver] stopping receiver task.")

@@ -1,6 +1,9 @@
+import server_response
+
 import asyncio
 import random
 import socket
+import json
 import ports
 
 
@@ -13,6 +16,7 @@ def get_open_port():
     port_range_end = 20000
 
     random_port = random.randint(port_range_start, port_range_end)
+
     while random_port in ports.blocked_ports:
         random_port = random.randint(port_range_start, port_range_end)
     ports.blocked_ports.append(random_port)
@@ -29,12 +33,23 @@ class Lobby:
     connected_clients = []      # contains tuples (client_sock, addr)
     running = True              # changes when the server stops running
 
+    stop_event = asyncio.Event()
+
     def __init__(self, name, creator):
         self.name = name        # Name of the new lobby
         self.creator = creator  # creator is a tuple containing the ip and port of the client
 
     def create_lobby(self):
         asyncio.run(self.lobby_setup())
+
+    def close(self):
+        # Sets the stop_event to stop the infinite loop.
+        self.stop_event.set()
+
+        # connects a dummy to skip the await loop.sock_accept() function.
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as dummy:
+            dummy.connect((self.HOST, self.PORT))
+            dummy.close()
 
     async def send_all(self, loop, client_data, data):
         """
@@ -68,15 +83,18 @@ class Lobby:
             data = data.decode()
             if data == "!leave" or data == "!exit":                 # if message !leave or !exit, disconnect the client.
                 break
-            print(data)
             # send message to all clients connected to this lobby
-            await self.send_all(loop, (client, addr), data.encode())
+            print(data)
+            response = server_response.generate_response(1, host=self.HOST, msg=data)
+            serialized_response = json.dumps(response).encode()
+            await self.send_all(loop, (client, addr), serialized_response)
         # LOOP - END #
         # disconnect the client and remove it from the connected clients list.
         client.close()
         self.connected_clients.remove((client, addr))
+
         if len(self.connected_clients) == 0:
-            self.running = False
+            self.close()
 
     async def lobby_setup(self):
         print(f"[lobby_setup] creating new lobby on port {self.PORT} ...")
@@ -93,14 +111,11 @@ class Lobby:
         loop = asyncio.get_event_loop()
 
         # handle incoming client connection
-        while True:
+        while not self.stop_event.is_set():
             client, addr = await loop.sock_accept(server)
             print(f"[lobby_setup] {addr} joined '{self.name}'.")
             self.connected_clients.append((client, addr))
             loop.create_task(self.handle_client(client, addr))
-            if not self.running:
-                break
-
         print(f"[lobby_setup] closing lobby server ('{self.name}')...")
         server.close()
         ports.blocked_ports.remove(self.PORT)
