@@ -33,6 +33,8 @@ class Lobby:
     connected_clients = []      # contains tuples (client_sock, addr)
     running = True              # changes when the server stops running
 
+    user_counter = 0
+
     stop_event = asyncio.Event()
 
     def __init__(self, name, creator):
@@ -63,7 +65,7 @@ class Lobby:
             if not receiver_clients == client_data:
                 await loop.sock_sendto(receiver_clients[0], data, receiver_clients[1])
 
-    async def handle_client(self, client, addr):
+    async def handle_client(self, client, addr, **kwargs):
         """
         manages the connected clients.
         - handles commands
@@ -72,7 +74,10 @@ class Lobby:
         :param addr: address
         :return: -
         """
+        username = kwargs.get("username", "")
+
         loop = asyncio.get_event_loop()
+        admin = self.connected_clients[0]                           # The first client is always the admin
 
         while True:                                                 # loop to receive incoming messages
             data = b""
@@ -84,7 +89,9 @@ class Lobby:
             if data == "!leave" or data == "!exit":                 # if message !leave or !exit, disconnect the client.
                 break
             # send message to all clients connected to this lobby
-            print(data)
+            if (client, addr) == admin and data.startswith('!'):
+                print("Executing command")
+            data = username + " >> " + data
             response = server_response.generate_response(1, host=self.HOST, msg=data)
             serialized_response = json.dumps(response).encode()
             await self.send_all(loop, (client, addr), serialized_response)
@@ -115,7 +122,8 @@ class Lobby:
             client, addr = await loop.sock_accept(server)
             print(f"[lobby_setup] {addr} joined '{self.name}'.")
             self.connected_clients.append((client, addr))
-            loop.create_task(self.handle_client(client, addr))
+            loop.create_task(self.handle_client(client, addr, username=f"user-{self.user_counter}"))
+            self.user_counter += 1
         print(f"[lobby_setup] closing lobby server ('{self.name}')...")
         server.close()
         ports.blocked_ports.remove(self.PORT)
