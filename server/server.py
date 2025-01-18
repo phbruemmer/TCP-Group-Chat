@@ -234,6 +234,8 @@ async def run_server():
 
     loop = asyncio.get_event_loop()
 
+    print("[run_server] listening for incoming connections...")
+
     while True:
         client, addr = await loop.sock_accept(server)
         print(f"[run_server] {addr[0]} connected to this server.")
