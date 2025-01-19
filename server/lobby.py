@@ -1,42 +1,15 @@
-import threading
-
 import server_response
-
-import asyncio
-import random
-import socket
-import json
 import ports
 
-
-def port_is_open(host, port, timeout=5):
-    try:
-        with socket.create_connection((host, port), timeout):
-            return True
-    except (socket.timeout, ConnectionRefusedError):
-        return False
-
-
-def get_open_port(HOST):
-    """
-    checks for open ports.
-    :return: int -> open port
-    """
-    port_range_start = 10000
-    port_range_end = 20000
-
-    random_port = random.randint(port_range_start, port_range_end)
-
-    while random_port in ports.blocked_ports or threading.Thread(target=port_is_open, args=(HOST, random_port)).start():
-        random_port = random.randint(port_range_start, port_range_end)
-    ports.blocked_ports.append(random_port)
-    return random_port
+import asyncio
+import socket
+import json
 
 
 class Lobby:
     # Constant Variables
     HOST = socket.gethostbyname(socket.gethostname())
-    PORT = get_open_port(HOST)
+    PORT = ports.get_open_port(HOST)
     BUFFER = 1024
 
     # Dynamic Variables
@@ -52,10 +25,18 @@ class Lobby:
         self.name = name        # Name of the new lobby
         self.creator = creator  # creator is a tuple containing the ip and port of the client
 
-    def create_lobby(self):
+    def create_lobby(self) -> None:
+        """
+        method to start the lobby.
+        :return: -
+        """
         asyncio.run(self.lobby_setup())
 
-    def close(self):
+    def close(self) -> None:
+        """
+        closes the server.
+        :return: -
+        """
         # Sets the stop_event to stop the infinite loop.
         self.stop_event.set()
 
@@ -67,17 +48,32 @@ class Lobby:
             dummy.connect((self.HOST, self.PORT))
             dummy.close()
 
-    async def send_all(self, loop, client_data, data):
+    async def send_all(self, loop, client, addr, data) -> None:
         """
         sends data to all clients in the connected clients list.
         :param loop: current event loop
-        :param client_data: tuple containing client socket and address
+        :param client: socket client object
+        :param addr: client address
         :param data: encrypted data to send to other clients
         :return: -
         """
         for receiver_clients in self.connected_clients:
-            if not receiver_clients == client_data:
+            if not receiver_clients == (client, addr):
                 await loop.sock_sendto(receiver_clients[0], data, receiver_clients[1])
+
+    async def send_to(self, loop, client, addr, data) -> None:
+        """
+        Formats and sends data to the client according to the protocol (json-format).
+        ! Only for messages !
+        :param loop: current event loop
+        :param client: socket client object
+        :param addr: client address
+        :param data: encrypted data
+        :return: -
+        """
+        message = server_response.generate_response(1, self.HOST, msg=data)
+        serialized_msg = json.dumps(message).encode()
+        await loop.sock_sendto(client, serialized_msg, addr)
 
     async def handle_client(self, client, addr, **kwargs):
         """
@@ -89,6 +85,10 @@ class Lobby:
         :return: -
         """
         async def receive_full_msg() -> str:
+            """
+            receives and reassembles buffered data from the client.
+            :return: string
+            """
             f_data = b""
             while True:                                                 # loop to assemble larger messages
                 f_data += await loop.sock_recv(client, self.BUFFER)
@@ -96,36 +96,57 @@ class Lobby:
                     break
             return f_data.decode()
 
-        async def client_loop():
-            while True:  # loop to receive incoming messages
+        async def client_loop() -> None:
+            """
+            Handles the incoming data stream from the client.
+            :return: -
+            """
+            # loop to receive incoming messages
+            while True:
                 data = await receive_full_msg()
-                if data == "!leave" or data == "!exit":  # if message !leave or !exit, disconnect the client.
+                if data == "!exit":
+                    # !exit closes the connection between client and server and stops the client loop.
                     break
-                # send message to all clients connected to this lobby
+
+                # checks if client is admin and if the received message starts with '!'
                 if (client, addr) == admin and data.startswith('!'):
+                    # handles admin commands
                     await handle_superuser_commands(data)
                 else:
-                    data = username + " >> " + data
-                    response = server_response.generate_response(1, host=self.HOST, msg=data)
-                    serialized_response = json.dumps(response).encode()
-                    await self.send_all(loop, (client, addr), serialized_response)
+                    # sends message to all clients connected to this lobby
+                    await self.send_all(loop, client, addr, username + " >> " + data)
 
-        async def check_password():
+        async def check_password() -> bool:
+            """
+            Checks the lobby password.
+            :return: bool
+            """
+            # Checks if the admin set a password for the lobby.
             if not self.password == "":
+                # generates password query
                 password_query = server_response.generate_response(1, self.HOST, msg="Enter Lobby password:")
                 serialized_query = json.dumps(password_query).encode()
+
+                # Sends password query to the client
                 await loop.sock_sendto(client, serialized_query, addr)
+
+                # Waits for client response
                 password = await receive_full_msg()
+
+                # Checks if client response matches lobby password
                 if not password == self.password:
-                    pw_response = server_response.generate_response(1, self.HOST,
-                                                                    msg="Invalid password. Closing connection.")
-                    s_query = json.dumps(pw_response).encode()
-                    await loop.sock_sendto(client, s_query, addr)
+                    # If the client entered the wrong password, the connection closes.
+                    await self.send_to(loop, client, addr, "Invalid password. Closing connection.")
                     client.close()
                     return False
             return True
 
-        async def handle_superuser_commands(command):
+        async def handle_superuser_commands(command) -> None:
+            """
+            Executes the corresponding command after separating the command into smaller pieces.
+            :param command: string
+            :return:
+            """
             command = command.split(" ")
 
             match command[0]:
@@ -144,9 +165,8 @@ class Lobby:
         if not await check_password():
             return
 
-        connected = server_response.generate_response(1, self.HOST, msg=f"You successfully connected to {self.name}")
-        s_connected = json.dumps(connected).encode()
-        await loop.sock_sendto(client, s_connected, addr)
+        # Sends success message
+        await self.send_to(loop, client, addr, f"You successfully connected to {self.name}")
 
         # Starts the client loop to receive and send data.
         await client_loop()
@@ -158,7 +178,7 @@ class Lobby:
         if len(self.connected_clients) == 0:
             self.close()
 
-    async def lobby_setup(self):
+    async def lobby_setup(self) -> None:
         def lobby_loop():
             print(f"[lobby_setup] {addr} joined '{self.name}'.")
             self.connected_clients.append((client, addr))
