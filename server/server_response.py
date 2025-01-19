@@ -9,7 +9,7 @@ codes:
 """
 
 
-def generate_response(code, host, **kwargs):
+def generate_response(code, host, **kwargs) -> dict:
     response = {
         'code': code,
         'host': host,
