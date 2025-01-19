@@ -1,4 +1,3 @@
-import threading
 import asyncio
 import socket
 import json
@@ -14,7 +13,13 @@ change_server_event = asyncio.Event()
 connection_data = ConnectionData()
 
 
-def handle_response(response, stop_event):
+def handle_response(response, stop_event) -> None:
+    """
+    handles responses from the server.
+    :param response: str
+    :param stop_event: asyncio.Event()
+    :return: -
+    """
     response_code = response['code']
     response_host = response['host']
 
@@ -50,17 +55,31 @@ def handle_response(response, stop_event):
         # print("[handle_response] incorrect response.")
 
 
-async def receiver(client, stop_event):
+async def receiver(client, stop_event) -> None:
+    """
+    handles incoming data from the server.
+    :param client: socket client object
+    :param stop_event: asyncio.Event()
+    :return: -
+    """
+    def receive() -> str:
+        """
+        receives full transmission from the server.
+        :return: str
+        """
+        data = b""
+        while True:
+            recv_data = client.recv(connection_data.BUFFER)
+            data += recv_data
+            # Breaks the loop after receiving data smaller than the buffer
+            if len(recv_data) < connection_data.BUFFER:
+                break
+        return data.decode()
+
     try:
         while not stop_event.is_set():
-            data = b""
             try:
-                while True:
-                    recv_data = client.recv(connection_data.BUFFER)
-                    data += recv_data
-                    if len(recv_data) < connection_data.BUFFER:
-                        break
-                command_map = json.loads(data.decode())
+                command_map = json.loads(receive())
                 handle_response(command_map, stop_event)
             except BlockingIOError:
                 await asyncio.sleep(0)
@@ -76,6 +95,13 @@ async def receiver(client, stop_event):
 
 
 async def sender(client, stop_event):
+    """
+    sends user input to the server.
+    :param client: socket client object
+    :param stop_event: asyncio.Event()
+    :return: -
+    """
+
     try:
         while not stop_event.is_set():
             # small sleep to prevent busy looping
@@ -96,6 +122,11 @@ async def sender(client, stop_event):
 
 
 async def handle_client(client):
+    """
+    function to handle asynchronous sending and receiving tasks.
+    :param client: socket client object
+    :return: -
+    """
     stop_event = asyncio.Event()
 
     receive = asyncio.create_task(receiver(client, stop_event))
@@ -114,6 +145,10 @@ async def handle_client(client):
 
 
 def start_client():
+    """
+    Prepares the client for server connection.
+    :return:
+    """
     # clear asyncio event
     change_server_event.clear()
 

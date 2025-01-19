@@ -54,12 +54,12 @@ class Lobby:
         :param loop: current event loop
         :param client: socket client object
         :param addr: client address
-        :param data: encrypted data to send to other clients
+        :param data: message (decrypted)
         :return: -
         """
         for receiver_clients in self.connected_clients:
             if not receiver_clients == (client, addr):
-                await loop.sock_sendto(receiver_clients[0], data, receiver_clients[1])
+                await self.send_to(loop, receiver_clients[0], receiver_clients[1], data)
 
     async def send_to(self, loop, client, addr, data) -> None:
         """
@@ -68,7 +68,7 @@ class Lobby:
         :param loop: current event loop
         :param client: socket client object
         :param addr: client address
-        :param data: encrypted data
+        :param data: message (decrypted)
         :return: -
         """
         message = server_response.generate_response(1, self.HOST, msg=data)
