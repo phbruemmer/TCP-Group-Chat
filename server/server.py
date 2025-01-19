@@ -7,6 +7,12 @@ import lobby
 import server_exceptions
 import server_response
 
+
+#                               #
+#   initial global variables    #
+#                               #
+
+
 HOST = socket.gethostbyname(socket.gethostname())
 PORT = 8888
 BUFFER = 1024
@@ -32,11 +38,16 @@ help_msg = ("[help] List of commands to use in this lobby.\n!help\t\t\t\t\t:\tli
             "\n!lobbies\t\t\t\t:\tlists all available lobbies.")
 
 
-def check_running_lobbies(lobby_data):
+#           #
+#   body    #
+#           #
+
+
+def check_running_lobbies(lobby_data) -> bool:
     """
     checks if lobby_data already exists
     :param lobby_data:
-    :return:
+    :return: bool
     """
     lobby_exists = False
     for lobby_name in running_lobbies:
@@ -48,22 +59,28 @@ def check_running_lobbies(lobby_data):
     return lobby_exists
 
 
-def join_lobby(lobby_host, lobby_port):
+def join_lobby(lobby_host, lobby_port) -> dict:
+    """
+
+    :param lobby_host: str
+    :param lobby_port: int
+    :return: dict
+    """
     try:
         if not check_running_lobbies((lobby_host, lobby_port)):
             raise server_exceptions.LobbyError("[join_lobby] couldn't find any running lobby with that data.")
         response = server_response.generate_response(2, HOST, connection=[lobby_host, lobby_port])
-        return response
     except server_exceptions.LobbyError:
-        return
+        response = server_response.generate_response(3, HOST, msg="Couldn't join lobby.")
+    return response
 
 
-def create_lobby(lobby_name, creator_client):
+def create_lobby(lobby_name, creator_client) -> tuple:
     """
     Creates a lobby object using the given information
     :param lobby_name: string
     :param creator_client: tuple containing client socket and addr.
-    :return:
+    :return: tuple
     """
     new_lobby = lobby.Lobby(
         name=lobby_name,
@@ -82,7 +99,7 @@ def create_lobby(lobby_name, creator_client):
     return new_lobby.HOST, new_lobby.PORT
 
 
-def handle_lobby_commands(cmd, client_data, client_is_running):
+def handle_lobby_commands(cmd, client_data, client_is_running) -> bytes:
     """
     Handles the commands received by the client handler and
     creates a response accordingly.
@@ -91,19 +108,33 @@ def handle_lobby_commands(cmd, client_data, client_is_running):
     :param client_data: tuple containing client socket and addr.
     :return: response (decoded)
     """
-    def join():
+    def join() -> dict:
+        """
+        joins another lobby.
+        :return: dict
+        """
         if not check_running_lobbies(cmd[1]):
             return server_response.generate_response(3, HOST, msg="Could not find lobby.")
         client_is_running.set()
         lobby_host, lobby_port = running_lobbies[cmd[1]]
         return join_lobby(lobby_host, lobby_port)
 
-    def create():
+    def create() -> dict:
+        """
+        Creates a new lobby server.
+        :return: dict
+        """
+        # standard response
+        create_response = server_response.generate_response(3, host=HOST, msg="Couldn't create a lobby")
+
+        # checks if lobby already exists.
         if not check_running_lobbies(cmd[1]):
-            # checks if lobby already exists.
+            # creates lobby object
             lobby_host, lobby_port = create_lobby(cmd[1], client_data)
+            # Preparation for closing the connection
             client_is_running.set()
-            return join_lobby(lobby_host, lobby_port)
+            create_response = join_lobby(lobby_host, lobby_port)
+        return create_response
 
     # separates the received command into small pieces
     cmd = cmd.split(' ')
@@ -156,7 +187,7 @@ def handle_lobby_commands(cmd, client_data, client_is_running):
     return json.dumps(response).encode()
 
 
-async def send_all(loop, client_data, data):
+async def send_all(loop, client_data, data) -> None:
     """
     Sends data to all users in that lobby
     :param loop: current event loop
@@ -171,7 +202,7 @@ async def send_all(loop, client_data, data):
             await loop.sock_sendto(con_client[0], data.encode(), con_client[1])
 
 
-async def handle_client(client, addr):
+async def handle_client(client, addr) -> None:
     """
     handles the client:
      - receives data / commands
@@ -180,7 +211,7 @@ async def handle_client(client, addr):
      - sends response to the client.
     :param client:
     :param addr:
-    :return:
+    :return: -
     """
     loop = asyncio.get_event_loop()
 
@@ -225,7 +256,7 @@ async def handle_client(client, addr):
 async def run_server():
     """
     Creates a server socket and handles starts the handle_client and client acceptation loop
-    :return:
+    :return: -
     """
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind((HOST, PORT))
